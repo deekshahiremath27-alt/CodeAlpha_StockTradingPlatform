@@ -1,0 +1,249 @@
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class Portfolio {
+
+    private double cash;
+
+    private final Map<String, Holding> holdings =
+            new LinkedHashMap<>();
+
+    private final List<Transaction> transactions =
+            new ArrayList<>();
+
+    private final List<Double> performanceSnapshots =
+            new ArrayList<>();
+
+    public Portfolio(double initialCash) {
+        this.cash = initialCash;
+    }
+
+    public double getCash() {
+        return cash;
+    }
+
+    public void buy(Stock stock, int quantity) {
+
+        validateQuantity(quantity);
+
+        double cost = stock.getPrice() * quantity;
+
+        if (cost > cash) {
+            throw new IllegalArgumentException(
+                    "Insufficient cash."
+            );
+        }
+
+        Holding holding =
+                holdings.get(stock.getSymbol());
+
+        if (holding == null) {
+
+            holding = new Holding(
+                    stock,
+                    quantity,
+                    cost
+            );
+
+            holdings.put(
+                    stock.getSymbol(),
+                    holding
+            );
+
+        } else {
+
+            holding.buy(quantity, cost);
+        }
+
+        cash -= cost;
+
+        transactions.add(
+                new Transaction(
+                        "BUY",
+                        stock.getSymbol(),
+                        quantity,
+                        stock.getPrice()
+                )
+        );
+    }
+
+    public void sell(Stock stock, int quantity) {
+
+        validateQuantity(quantity);
+
+        Holding holding =
+                holdings.get(stock.getSymbol());
+
+        if (holding == null ||
+                holding.getQuantity() < quantity) {
+
+            throw new IllegalArgumentException(
+                    "You do not own enough shares."
+            );
+        }
+
+        double proceeds =
+                stock.getPrice() * quantity;
+
+        holding.sell(quantity, proceeds);
+
+        cash += proceeds;
+
+        if (holding.getQuantity() == 0) {
+            holdings.remove(stock.getSymbol());
+        }
+
+        transactions.add(
+                new Transaction(
+                        "SELL",
+                        stock.getSymbol(),
+                        quantity,
+                        stock.getPrice()
+                )
+        );
+    }
+
+    public double getHoldingsValue() {
+
+        return holdings.values()
+                .stream()
+                .mapToDouble(
+                        Holding::getMarketValue
+                )
+                .sum();
+    }
+
+    public double getPortfolioValue() {
+
+        return cash + getHoldingsValue();
+    }
+
+    public void recordSnapshot() {
+
+        performanceSnapshots.add(
+                getPortfolioValue()
+        );
+
+        System.out.println(
+                "Performance snapshot recorded."
+        );
+    }
+
+    public void displayPortfolio() {
+
+        System.out.println(
+                "\n========== PORTFOLIO =========="
+        );
+
+        System.out.printf(
+                "Cash: ₹%.2f%n",
+                cash
+        );
+
+        if (holdings.isEmpty()) {
+
+            System.out.println(
+                    "No stock holdings."
+            );
+
+        } else {
+
+            System.out.printf(
+                    "%-10s %-10s %-15s %-15s %-15s%n",
+                    "Symbol",
+                    "Quantity",
+                    "Value",
+                    "Invested",
+                    "P/L"
+            );
+
+            for (Holding h :
+                    holdings.values()) {
+
+                System.out.printf(
+                        "%-10s %-10d ₹%-14.2f ₹%-14.2f ₹%-14.2f%n",
+
+                        h.getStock().getSymbol(),
+
+                        h.getQuantity(),
+
+                        h.getMarketValue(),
+
+                        h.getTotalInvested(),
+
+                        h.getProfitLoss()
+                );
+            }
+        }
+
+        System.out.printf(
+                "Total Portfolio Value: ₹%.2f%n",
+                getPortfolioValue()
+        );
+    }
+
+    public void displayPerformance() {
+
+        System.out.println(
+                "\n========== PERFORMANCE =========="
+        );
+
+        if (performanceSnapshots.isEmpty()) {
+
+            System.out.println(
+                    "No performance snapshots recorded."
+            );
+
+            return;
+        }
+
+        for (int i = 0;
+                i < performanceSnapshots.size();
+                i++) {
+
+            System.out.printf(
+                    "Snapshot %d: ₹%.2f%n",
+                    i + 1,
+                    performanceSnapshots.get(i)
+            );
+        }
+    }
+
+    public void saveTransactions(
+            String fileName) {
+
+        try (FileWriter writer =
+                     new FileWriter(fileName)) {
+
+            for (Transaction transaction :
+                    transactions) {
+
+                writer.write(
+                        transaction +
+                        System.lineSeparator()
+                );
+            }
+
+        } catch (IOException e) {
+
+            System.out.println(
+                    "Could not save transactions: "
+                            + e.getMessage()
+            );
+        }
+    }
+
+    private void validateQuantity(int quantity) {
+
+        if (quantity <= 0) {
+
+            throw new IllegalArgumentException(
+                    "Quantity must be greater than zero."
+            );
+        }
+    }
+}
